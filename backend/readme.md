@@ -4,6 +4,135 @@
 
 Hi and congratulations on your progress with Zentry!
 
+# Getting Started
+
+This is a Lerna monorepo containing multiple modules for the Bacefook social network analytics platform.
+
+## Prerequisites
+
+- Node.js 20+
+- PostgreSQL
+- Docker (optional, for database)
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+# From the backend directory
+yarn install
+```
+
+### 2. Set Up Database
+
+#### Option A: Using Docker (Recommended)
+
+```bash
+# Start PostgreSQL with Docker
+docker-compose up -d
+
+# The database will be available at:
+# Host: localhost
+# Port: 5432
+# Database: bacefook
+# Username: postgres
+# Password: password
+```
+
+#### Option B: Local PostgreSQL
+
+1. Install PostgreSQL locally
+2. Create a database named `bacefook`
+3. Update the `DATABASE_URL` in your `.env` file
+
+### 3. Environment Setup
+
+```bash
+# Copy environment template
+cp modules/bacefook-api/.env.example modules/bacefook-api/.env
+
+# Update DATABASE_URL if needed
+# DATABASE_URL="postgresql://postgres:password@localhost:5432/bacefook"
+```
+
+### 4. Database Migration
+
+```bash
+# Navigate to the API module
+cd modules/bacefook-api
+
+# Run database migrations
+npx prisma migrate dev
+
+# Generate Prisma client
+npx prisma generate
+```
+
+## Running the Project
+
+### Run Tests
+
+```bash
+# Run all tests in the monorepo
+yarn test
+
+# Run tests for specific module
+yarn workspace bacefook-api test
+yarn workspace bacefook-core test
+
+# Run tests with watch mode
+yarn workspace bacefook-api test:watch
+```
+
+### Run Development Server
+
+```bash
+# Start the NestJS API server
+yarn workspace bacefook-api start:dev
+
+# The API will be available at http://localhost:3000
+```
+
+### Database Management
+
+```bash
+# Open Prisma Studio (database GUI)
+cd modules/bacefook-api
+npx prisma studio
+
+# Reset database (⚠️ destroys all data)
+npx prisma migrate reset --force
+
+# View database schema
+npx prisma db pull
+```
+
+## Available Scripts
+
+### Root Level (Lerna)
+
+```bash
+yarn test                    # Run all tests
+yarn build                   # Build all packages
+yarn clean                   # Clean all packages
+```
+
+### bacefook-api Module
+
+```bash
+yarn workspace bacefook-api test          # Run tests
+yarn workspace bacefook-api test:watch    # Run tests in watch mode
+yarn workspace bacefook-api start:dev     # Start development server
+yarn workspace bacefook-api build         # Build the application
+```
+
+### bacefook-core Module
+
+```bash
+yarn workspace bacefook-core test         # Run tests
+yarn workspace bacefook-core build        # Build the package
+```
+
 # Requirements (Glossary below)
 
 Your objective is to design and implement a social network data analytics platform for a social network site **Bacefook**.
