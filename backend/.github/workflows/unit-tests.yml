@@ -1,0 +1,89 @@
+name: Unit Tests
+
+on:
+  push:
+    paths:
+      - "modules/**"
+      - ".github/workflows/unit-tests.yml"
+      - "package.json"
+      - "yarn.lock"
+  pull_request:
+    paths:
+      - "modules/**"
+      - ".github/workflows/unit-tests.yml"
+      - "package.json"
+      - "yarn.lock"
+
+jobs:
+  test-bacefook-core:
+    name: Test bacefook-core
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run bacefook-core unit tests
+        run: yarn workspace bacefook-core test
+
+  test-bacefook-api:
+    name: Test bacefook-api (NestJS)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: yarn workspace bacefook-api prisma generate
+
+      - name: Run bacefook-api unit tests
+        run: yarn workspace bacefook-api test
+
+  test-all:
+    name: Test All Modules
+    runs-on: ubuntu-latest
+    needs: [test-bacefook-core, test-bacefook-api]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "yarn"
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Run all tests
+        run: |
+          echo "Running bacefook-core tests..."
+          yarn workspace bacefook-core test
+          echo "Running bacefook-api tests..."
+          yarn workspace bacefook-api test
+
+      - name: Test Summary
+        run: |
+          echo "✅ All unit tests passed!"
+          echo "📊 Test coverage and results available above" 
