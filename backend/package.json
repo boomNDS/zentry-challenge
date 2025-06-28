@@ -1,0 +1,16 @@
+{
+  "name": "zentry-backend",
+  "private": true,
+  "workspaces": [
+    "modules/*"
+  ],
+  "devDependencies": {
+    "lerna": "^7.3.1"
+  },
+  "scripts": {
+    "start": "yarn workspace bacefook-core start",
+    "test": "yarn workspace bacefook-core test",
+    "run:core": "yarn workspace bacefook-core start",
+    "run:api": "yarn workspace bacefook-api start"
+  }
+}
