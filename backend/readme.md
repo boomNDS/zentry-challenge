@@ -1,5 +1,7 @@
 # The Zentry Challenge
 
+[![Unit Tests](https://github.com/boomNDS/zentry-challenge/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/boomNDS/zentry-challenge/actions/workflows/unit-tests.yml)
+
 Hi and congratulations on your progress with Zentry!
 
 # Requirements (Glossary below)
@@ -54,45 +56,46 @@ Your task is to create a durable workflow that periodically stream data using th
  * Represents new user enrollment
  */
 interface RegisterEvent {
-    type: "register";
-    name: string;
-    created_at: string;
+  type: "register";
+  name: string;
+  created_at: string;
 }
 
 /**
  * Represents a fact that user a refers user b
  */
 interface ReferralEvent {
-    type: "referral";
-    referredBy: string;
-    user: string;
-    created_at: string;
+  type: "referral";
+  referredBy: string;
+  user: string;
+  created_at: string;
 }
 
 /*
-* Represent new un-directed friendship between two users.
-*/
+ * Represent new un-directed friendship between two users.
+ */
 interface AddFriendEvent {
-    type: "addfriend";
-    user1_name: string;
-    user2_name: string;
-    created_at: string;
+  type: "addfriend";
+  user1_name: string;
+  user2_name: string;
+  created_at: string;
 }
 
 /*
-* Removes existing un-directed relationship.
-*/
+ * Removes existing un-directed relationship.
+ */
 interface UnfriendEvent {
-    type: "unfriend";
-    user1_name: string;
-    user2_name: string;
-    created_at: string;
+  type: "unfriend";
+  user1_name: string;
+  user2_name: string;
+  created_at: string;
 }
 ```
 
 The first iteration won't contain any unfriend event so you may have to call it more than once to test unfriend events.
 
 As an example, your modules at the end might contain
+
 - A workflow module for cron jobs that pull in data and store them
 - Another workflow for picking up the data and transform it
 - Backend for querying the data
@@ -139,4 +142,3 @@ When new person joins a referral graph, their friend and referral must all get p
 **Influential friends**
 
 Friends that have the most referral points + network strength.
-
