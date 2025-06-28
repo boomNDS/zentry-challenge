@@ -13,7 +13,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// User model for the social media platform
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -25,76 +24,43 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  posts     Post[]
-  comments  Comment[]
-  likes     Like[]
-  followers Follow[]  @relation("UserFollowers")
-  following Follow[]  @relation("UserFollowing")
+  // Referral relationships (tree structure)
+  referredBy   User?   @relation("Referrals", fields: [referredById], references: [id])
+  referredById String?
+  referrals    User[]  @relation("Referrals")
 
-  @@map("users")
+  // Friendship relationships (many-to-many)
+  friends  User[] @relation("UserFriends")
+  friendOf User[] @relation("UserFriends")
+
+  // Analytics data
+  referralPoints  ReferralPoint[]
+  networkStrength NetworkStrength?
 }
 
-// Post model
-model Post {
+model ReferralPoint {
   id        String   @id @default(cuid())
-  content   String
-  imageUrl  String?
-  published Boolean  @default(true)
+  userId    String   @unique
+  points    Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  authorId String
-  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  comments Comment[]
-  likes    Like[]
-
-  @@map("posts")
+  user User @relation(fields: [userId], references: [id])
 }
 
-// Comment model
-model Comment {
-  id        String   @id @default(cuid())
-  content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model NetworkStrength {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  strength     Int      @default(0)
+  calculatedAt DateTime @default(now())
 
-  // Relations
-  authorId String
-  author   User   @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  postId   String
-  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@map("comments")
+  user User @relation(fields: [userId], references: [id])
 }
 
-// Like model
-model Like {
+model Event {
   id        String   @id @default(cuid())
+  type      String // "register", "referral", "addfriend", "unfriend"
+  data      Json // Store event-specific data
   createdAt DateTime @default(now())
-
-  // Relations
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  postId String
-  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, postId])
-  @@map("likes")
-}
-
-// Follow model for user relationships
-model Follow {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-
-  // Relations
-  followerId  String
-  follower    User   @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
-  followingId String
-  following   User   @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
-
-  @@unique([followerId, followingId])
-  @@map("follows")
+  processed Boolean  @default(false)
 }

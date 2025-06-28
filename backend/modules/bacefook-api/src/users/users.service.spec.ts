@@ -188,11 +188,12 @@ describe('UsersService', () => {
           bio: true,
           avatar: true,
           createdAt: true,
+          updatedAt: true,
           _count: {
             select: {
-              posts: true,
-              followers: true,
-              following: true,
+              friends: true,
+              referrals: true,
+              referralPoints: true,
             },
           },
         },
@@ -218,12 +219,13 @@ describe('UsersService', () => {
   describe('findOne', () => {
     const userId = 'clx1234567890abcdef';
 
-    it('should return user by id with details and call database', async () => {
-      prismaService.user.findUnique.mockResolvedValue(createMockUser());
+    it('should return user with details and call database', async () => {
+      const mockUser = createMockUser();
+      prismaService.user.findUnique.mockResolvedValue(mockUser);
 
       const result = await service.findOne(userId);
 
-      expect(result).toEqual(createMockUser());
+      expect(result).toEqual(mockUser);
       expect(prismaService.user.findUnique).toHaveBeenCalledTimes(1);
       expect(prismaService.user.findUnique).toHaveBeenCalledWith({
         where: { id: userId },
@@ -239,25 +241,72 @@ describe('UsersService', () => {
           updatedAt: true,
           _count: {
             select: {
-              posts: true,
-              followers: true,
-              following: true,
+              friends: true,
+              referrals: true,
+              referralPoints: true,
             },
           },
-          posts: {
-            take: 5,
-            orderBy: { createdAt: 'desc' },
+          friends: {
             select: {
               id: true,
-              content: true,
-              imageUrl: true,
-              createdAt: true,
-              _count: {
-                select: {
-                  likes: true,
-                  comments: true,
-                },
-              },
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+            },
+          },
+          referrals: {
+            select: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+            },
+          },
+        },
+      });
+    });
+
+    it('should throw NotFoundException when user not found', async () => {
+      prismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.findOne(userId)).rejects.toThrow(NotFoundException);
+      expect(prismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          username: true,
+          firstName: true,
+          lastName: true,
+          bio: true,
+          avatar: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: {
+            select: {
+              friends: true,
+              referrals: true,
+              referralPoints: true,
+            },
+          },
+          friends: {
+            select: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+            },
+          },
+          referrals: {
+            select: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
             },
           },
         },

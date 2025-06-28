@@ -44,11 +44,12 @@ export class UsersService {
         bio: true,
         avatar: true,
         createdAt: true,
+        updatedAt: true,
         _count: {
           select: {
-            posts: true,
-            followers: true,
-            following: true,
+            friends: true,
+            referrals: true,
+            referralPoints: true,
           },
         },
       },
@@ -72,25 +73,27 @@ export class UsersService {
         updatedAt: true,
         _count: {
           select: {
-            posts: true,
-            followers: true,
-            following: true,
+            friends: true,
+            referrals: true,
+            referralPoints: true,
           },
         },
-        posts: {
-          take: 5,
-          orderBy: { createdAt: 'desc' },
+        friends: {
           select: {
             id: true,
-            content: true,
-            imageUrl: true,
-            createdAt: true,
-            _count: {
-              select: {
-                likes: true,
-                comments: true,
-              },
-            },
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+          },
+        },
+        referrals: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
           },
         },
       },
