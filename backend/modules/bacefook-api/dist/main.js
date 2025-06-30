@@ -20,10 +20,6 @@ async function bootstrap() {
         .setDescription('A social media platform API built with NestJS and Prisma')
         .setVersion('1.0')
         .addTag('users', 'User management endpoints')
-        .addTag('posts', 'Post management endpoints')
-        .addTag('comments', 'Comment management endpoints')
-        .addTag('likes', 'Like management endpoints')
-        .addTag('follows', 'Follow relationship endpoints')
         .addBearerAuth()
         .build();
     const document = swagger_1.SwaggerModule.createDocument(app, config);

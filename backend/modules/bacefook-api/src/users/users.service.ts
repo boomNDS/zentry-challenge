@@ -26,9 +26,50 @@ export class UsersService {
       );
     }
 
+    let referredById: string | undefined = undefined;
+    if (createUserDto.referredById) {
+      const refUser = await this.prisma.user.findUnique({
+        where: { id: createUserDto.referredById },
+        select: { id: true },
+      });
+      if (refUser) {
+        referredById = refUser.id;
+      }
+    }
+
     const user = await this.prisma.user.create({
-      data: createUserDto,
+      data: {
+        ...createUserDto,
+        referredById,
+      },
     });
+
+    await this.prisma.event.create({
+      data: {
+        type: 'register',
+        data: {
+          ...createUserDto,
+          referredById,
+          userId: user.id,
+          createdAt: user.createdAt,
+        },
+        processed: true,
+      },
+    });
+
+    if (referredById) {
+      await this.prisma.event.create({
+        data: {
+          type: 'referral',
+          data: {
+            referredBy: referredById,
+            user: user.id,
+            createdAt: user.createdAt,
+          },
+          processed: true,
+        },
+      });
+    }
 
     return user;
   }

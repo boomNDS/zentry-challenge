@@ -14,6 +14,7 @@ exports.AppController = void 0;
 const common_1 = require("@nestjs/common");
 const swagger_1 = require("@nestjs/swagger");
 const app_service_1 = require("./app.service");
+const date_util_1 = require("./common/utils/date.util");
 let AppController = AppController_1 = class AppController {
     constructor(appService) {
         this.appService = appService;
@@ -23,7 +24,7 @@ let AppController = AppController_1 = class AppController {
         this.logger.log('Health check endpoint accessed');
         return {
             message: 'Bacefook API is running!',
-            timestamp: new Date().toISOString(),
+            timestamp: (0, date_util_1.formatDate)(new Date()),
             version: '1.0.0',
         };
     }
@@ -31,7 +32,7 @@ let AppController = AppController_1 = class AppController {
         this.logger.log('Detailed health check endpoint accessed');
         return {
             status: 'ok',
-            timestamp: new Date().toISOString(),
+            timestamp: (0, date_util_1.formatDate)(new Date()),
             uptime: process.uptime(),
             environment: process.env.NODE_ENV || 'development',
             version: '1.0.0',

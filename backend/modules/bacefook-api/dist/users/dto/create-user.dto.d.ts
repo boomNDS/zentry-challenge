@@ -5,4 +5,5 @@ export declare class CreateUserDto {
     lastName: string;
     bio?: string;
     avatar?: string;
+    referredById?: string;
 }

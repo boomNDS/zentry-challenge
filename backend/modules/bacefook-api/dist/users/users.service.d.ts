@@ -2,70 +2,76 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
 export declare class UsersService {
     private prisma;
-    private readonly logger;
     constructor(prisma: PrismaService);
     create(createUserDto: CreateUserDto): Promise<{
+        id: string;
         email: string;
         username: string;
         firstName: string;
         lastName: string;
         bio: string | null;
         avatar: string | null;
-        id: string;
         createdAt: Date;
         updatedAt: Date;
+        referredById: string | null;
     }>;
     findAll(): Promise<{
+        id: string;
         email: string;
         username: string;
         firstName: string;
         lastName: string;
         bio: string;
         avatar: string;
-        id: string;
         createdAt: Date;
+        updatedAt: Date;
         _count: {
-            posts: number;
-            followers: number;
-            following: number;
+            referrals: number;
+            friends: number;
+            referralPoints: number;
         };
     }[]>;
     findOne(id: string): Promise<{
+        id: string;
         email: string;
         username: string;
         firstName: string;
         lastName: string;
         bio: string;
         avatar: string;
-        id: string;
         createdAt: Date;
         updatedAt: Date;
-        posts: {
-            content: string;
+        referrals: {
             id: string;
-            createdAt: Date;
-            _count: {
-                comments: number;
-                likes: number;
-            };
-            imageUrl: string;
+            username: string;
+            firstName: string;
+            lastName: string;
+            avatar: string;
+        }[];
+        friends: {
+            id: string;
+            username: string;
+            firstName: string;
+            lastName: string;
+            avatar: string;
         }[];
         _count: {
-            posts: number;
-            followers: number;
-            following: number;
+            referrals: number;
+            friends: number;
+            referralPoints: number;
         };
     }>;
     update(id: string, updateUserDto: UpdateUserDto): Promise<{
+        id: string;
         email: string;
         username: string;
         firstName: string;
         lastName: string;
         bio: string | null;
         avatar: string | null;
-        id: string;
         createdAt: Date;
         updatedAt: Date;
+        referredById: string | null;
     }>;
     remove(id: string): Promise<{
         message: string;
