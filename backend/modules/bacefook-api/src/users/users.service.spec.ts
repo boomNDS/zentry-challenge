@@ -219,7 +219,7 @@ describe('UsersService', () => {
         total: 0,
         page: 1,
         limit: 10,
-        totalPages: 0,
+        totalPages: 1,
       });
       expect(prismaService.user.findMany).toHaveBeenCalledTimes(1);
     });

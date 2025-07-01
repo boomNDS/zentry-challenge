@@ -187,4 +187,47 @@ export class UsersController {
   async getFriends(@Param('id') id: string, @Query() query: SearchUsersDto) {
     return this.usersService.getFriends(id, query);
   }
+
+  @Get(':id/referral-count')
+  async getReferralCount(
+    @Param('id') id: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.usersService.getReferralCount(id, from, to);
+  }
+
+  @Get(':id/referral-timeseries')
+  async getReferralTimeseries(
+    @Param('id') id: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.usersService.getReferralTimeseries(id, from, to);
+  }
+
+  @Get(':id/friends-count')
+  async getFriendsCount(
+    @Param('id') id: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.usersService.getFriendsCount(id, from, to);
+  }
+
+  @Get(':id/friends-timeseries')
+  async getFriendsTimeseries(
+    @Param('id') id: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.usersService.getFriendsTimeseries(id, from, to);
+  }
+
+  @Get(':id/top-influential-friends')
+  @ApiOperation({ summary: 'Get top 3 influential friends' })
+  @ApiOkResponse({ description: 'Top 3 influential friends' })
+  async getTopInfluentialFriends(@Param('id') id: string) {
+    return this.usersService.getTopInfluentialFriends(id);
+  }
 }

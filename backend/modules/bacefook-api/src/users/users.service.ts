@@ -457,4 +457,120 @@ export class UsersService {
       create: { userId, strength },
     });
   }
+
+  async getReferralCount(userId: string, from: string, to: string) {
+    const count = await this.prisma.user.count({
+      where: {
+        referredById: userId,
+        createdAt: {
+          gte: new Date(from),
+          lte: new Date(to),
+        },
+      },
+    });
+    return { count };
+  }
+
+  async getReferralTimeseries(userId: string, from: string, to: string) {
+    const referrals = await this.prisma.user.findMany({
+      where: {
+        referredById: userId,
+        createdAt: {
+          gte: new Date(from),
+          lte: new Date(to),
+        },
+      },
+      select: { createdAt: true },
+    });
+
+    // Group by date (YYYY-MM-DD)
+    const series: Record<string, number> = {};
+    referrals.forEach((r) => {
+      const date = r.createdAt.toISOString().slice(0, 10);
+      series[date] = (series[date] || 0) + 1;
+    });
+
+    return {
+      series: Object.entries(series).map(([date, count]) => ({ date, count })),
+    };
+  }
+
+  async getFriendsCount(userId: string, from: string, to: string) {
+    const count = await this.prisma.event.count({
+      where: {
+        type: 'addfriend',
+        data: {
+          path: ['user1Id'],
+          equals: userId,
+        },
+        createdAt: {
+          gte: new Date(from),
+          lte: new Date(to),
+        },
+      },
+    });
+    return { count };
+  }
+
+  async getFriendsTimeseries(userId: string, from: string, to: string) {
+    const events = await this.prisma.event.findMany({
+      where: {
+        type: 'addfriend',
+        data: {
+          path: ['user1Id'],
+          equals: userId,
+        },
+        createdAt: {
+          gte: new Date(from),
+          lte: new Date(to),
+        },
+      },
+      select: { createdAt: true },
+    });
+
+    const series: Record<string, number> = {};
+    events.forEach((e) => {
+      const date = e.createdAt.toISOString().slice(0, 10);
+      series[date] = (series[date] || 0) + 1;
+    });
+
+    return {
+      series: Object.entries(series).map(([date, count]) => ({ date, count })),
+    };
+  }
+
+  async getTopInfluentialFriends(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        friends: { select: { id: true } },
+      },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const friendIds = user.friends.map((f) => f.id);
+
+    if (friendIds.length === 0) return [];
+
+    const friends = await this.prisma.user.findMany({
+      where: { id: { in: friendIds } },
+      include: {
+        networkStrength: { select: { strength: true } },
+      },
+      orderBy: [
+        { networkStrength: { strength: 'desc' } },
+        { createdAt: 'asc' },
+      ],
+      take: 3,
+    });
+
+    return friends.map((f) => ({
+      id: f.id,
+      username: f.username,
+      firstName: f.firstName,
+      lastName: f.lastName,
+      avatar: f.avatar,
+      networkStrength: f.networkStrength?.strength ?? 0,
+    }));
+  }
 }
