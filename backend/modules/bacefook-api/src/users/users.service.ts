@@ -4,7 +4,8 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateUserDto, UpdateUserDto } from './dto';
+import { CreateUserDto, SearchUsersDto, UpdateUserDto } from './dto';
+import { mapUserProfile } from '../common/user.util';
 
 @Injectable()
 export class UsersService {
@@ -71,54 +72,93 @@ export class UsersService {
       });
     }
 
-    return user;
+    return mapUserProfile({
+      ...user,
+      friends: [],
+      referrals: [],
+      referralPoints: [],
+      networkStrength: { strength: 0 },
+    });
   }
 
-  async findAll() {
-    const users = await this.prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        firstName: true,
-        lastName: true,
-        bio: true,
-        avatar: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: {
-          select: {
-            friends: true,
-            referrals: true,
-            referralPoints: true,
+  async findAll(query: SearchUsersDto) {
+    const { search, page = 1, limit = 10 } = query;
+
+    const where = search
+      ? {
+          OR: [
+            { username: { contains: search, mode: 'insensitive' as const } },
+            { email: { contains: search, mode: 'insensitive' as const } },
+            { firstName: { contains: search, mode: 'insensitive' as const } },
+            { lastName: { contains: search, mode: 'insensitive' as const } },
+          ],
+        }
+      : {};
+
+    const [users, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          friends: {
+            select: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+            },
+          },
+          referrals: {
+            select: {
+              id: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+            },
+          },
+          referralPoints: {
+            select: { points: true },
+          },
+          networkStrength: {
+            select: { strength: true },
           },
         },
-      },
-    });
+      }),
+      this.prisma.user.count({ where }),
+    ]);
 
-    return users;
+    const formattedUsers = users.map((user) => ({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      bio: user.bio,
+      avatar: user.avatar,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      friends: user.friends,
+      referrals: user.referrals,
+      referralPoints: user.referralPoints?.[0]?.points ?? 0,
+      networkStrength: user.networkStrength?.strength ?? 0,
+    }));
+
+    return {
+      data: formattedUsers,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findOne(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        email: true,
-        username: true,
-        firstName: true,
-        lastName: true,
-        bio: true,
-        avatar: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: {
-          select: {
-            friends: true,
-            referrals: true,
-            referralPoints: true,
-          },
-        },
+      include: {
         friends: {
           select: {
             id: true,
@@ -137,6 +177,12 @@ export class UsersService {
             avatar: true,
           },
         },
+        referralPoints: {
+          select: { points: true },
+        },
+        networkStrength: {
+          select: { strength: true },
+        },
       },
     });
 
@@ -144,7 +190,7 @@ export class UsersService {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
 
-    return user;
+    return mapUserProfile(user);
   }
 
   async update(id: string, updateUserDto: UpdateUserDto) {
@@ -173,12 +219,56 @@ export class UsersService {
       }
     }
 
-    const user = await this.prisma.user.update({
+    // Update the user
+    await this.prisma.user.update({
       where: { id },
       data: updateUserDto,
     });
 
-    return user;
+    // Fetch the updated user with relations
+    const userWithRelations = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        friends: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+          },
+        },
+        referrals: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+          },
+        },
+        referralPoints: {
+          select: { points: true },
+        },
+        networkStrength: {
+          select: { strength: true },
+        },
+      },
+    });
+
+    await this.prisma.event.create({
+      data: {
+        type: 'updated',
+        data: {
+          ...updateUserDto,
+          userId: id,
+          updatedAt: userWithRelations?.updatedAt,
+        },
+        processed: true,
+      },
+    });
+
+    return mapUserProfile(userWithRelations);
   }
 
   async remove(id: string) {
@@ -189,6 +279,16 @@ export class UsersService {
 
     await this.prisma.user.delete({
       where: { id },
+    });
+
+    await this.prisma.event.create({
+      data: {
+        type: 'deleted',
+        data: {
+          userId: id,
+        },
+        processed: true,
+      },
     });
 
     return { message: 'User deleted successfully' };

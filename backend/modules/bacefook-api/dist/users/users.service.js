@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UsersService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const user_util_1 = require("../common/user.util");
 let UsersService = class UsersService {
     constructor(prisma) {
         this.prisma = prisma;
@@ -69,51 +70,87 @@ let UsersService = class UsersService {
                 },
             });
         }
-        return user;
+        return (0, user_util_1.mapUserProfile)({
+            ...user,
+            friends: [],
+            referrals: [],
+            referralPoints: [],
+            networkStrength: { strength: 0 },
+        });
     }
-    async findAll() {
-        const users = await this.prisma.user.findMany({
-            select: {
-                id: true,
-                email: true,
-                username: true,
-                firstName: true,
-                lastName: true,
-                bio: true,
-                avatar: true,
-                createdAt: true,
-                updatedAt: true,
-                _count: {
-                    select: {
-                        friends: true,
-                        referrals: true,
-                        referralPoints: true,
+    async findAll(query) {
+        const { search, page = 1, limit = 10 } = query;
+        const where = search
+            ? {
+                OR: [
+                    { username: { contains: search, mode: 'insensitive' } },
+                    { email: { contains: search, mode: 'insensitive' } },
+                    { firstName: { contains: search, mode: 'insensitive' } },
+                    { lastName: { contains: search, mode: 'insensitive' } },
+                ],
+            }
+            : {};
+        const [users, total] = await Promise.all([
+            this.prisma.user.findMany({
+                where,
+                skip: (page - 1) * limit,
+                take: limit,
+                include: {
+                    friends: {
+                        select: {
+                            id: true,
+                            username: true,
+                            firstName: true,
+                            lastName: true,
+                            avatar: true,
+                        },
+                    },
+                    referrals: {
+                        select: {
+                            id: true,
+                            username: true,
+                            firstName: true,
+                            lastName: true,
+                            avatar: true,
+                        },
+                    },
+                    referralPoints: {
+                        select: { points: true },
+                    },
+                    networkStrength: {
+                        select: { strength: true },
                     },
                 },
-            },
-        });
-        return users;
+            }),
+            this.prisma.user.count({ where }),
+        ]);
+        const formattedUsers = users.map((user) => ({
+            id: user.id,
+            email: user.email,
+            username: user.username,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            bio: user.bio,
+            avatar: user.avatar,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+            friends: user.friends,
+            referrals: user.referrals,
+            referralPoints: user.referralPoints?.[0]?.points ?? 0,
+            networkStrength: user.networkStrength?.strength ?? 0,
+        }));
+        return {
+            data: formattedUsers,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+        };
     }
     async findOne(id) {
         const user = await this.prisma.user.findUnique({
             where: { id },
-            select: {
-                id: true,
-                email: true,
-                username: true,
-                firstName: true,
-                lastName: true,
-                bio: true,
-                avatar: true,
-                createdAt: true,
-                updatedAt: true,
-                _count: {
-                    select: {
-                        friends: true,
-                        referrals: true,
-                        referralPoints: true,
-                    },
-                },
+            include: {
                 friends: {
                     select: {
                         id: true,
@@ -132,12 +169,18 @@ let UsersService = class UsersService {
                         avatar: true,
                     },
                 },
+                referralPoints: {
+                    select: { points: true },
+                },
+                networkStrength: {
+                    select: { strength: true },
+                },
             },
         });
         if (!user) {
             throw new common_1.NotFoundException(`User with ID ${id} not found`);
         }
-        return user;
+        return (0, user_util_1.mapUserProfile)(user);
     }
     async update(id, updateUserDto) {
         const existingUser = await this.prisma.user.findUnique({ where: { id } });
@@ -160,11 +203,51 @@ let UsersService = class UsersService {
                 throw new common_1.ConflictException('User with this email or username already exists');
             }
         }
-        const user = await this.prisma.user.update({
+        await this.prisma.user.update({
             where: { id },
             data: updateUserDto,
         });
-        return user;
+        const userWithRelations = await this.prisma.user.findUnique({
+            where: { id },
+            include: {
+                friends: {
+                    select: {
+                        id: true,
+                        username: true,
+                        firstName: true,
+                        lastName: true,
+                        avatar: true,
+                    },
+                },
+                referrals: {
+                    select: {
+                        id: true,
+                        username: true,
+                        firstName: true,
+                        lastName: true,
+                        avatar: true,
+                    },
+                },
+                referralPoints: {
+                    select: { points: true },
+                },
+                networkStrength: {
+                    select: { strength: true },
+                },
+            },
+        });
+        await this.prisma.event.create({
+            data: {
+                type: 'updated',
+                data: {
+                    ...updateUserDto,
+                    userId: id,
+                    updatedAt: userWithRelations?.updatedAt,
+                },
+                processed: true,
+            },
+        });
+        return (0, user_util_1.mapUserProfile)(userWithRelations);
     }
     async remove(id) {
         const existingUser = await this.prisma.user.findUnique({ where: { id } });
@@ -173,6 +256,15 @@ let UsersService = class UsersService {
         }
         await this.prisma.user.delete({
             where: { id },
+        });
+        await this.prisma.event.create({
+            data: {
+                type: 'deleted',
+                data: {
+                    userId: id,
+                },
+                processed: true,
+            },
         });
         return { message: 'User deleted successfully' };
     }

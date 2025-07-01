@@ -174,7 +174,11 @@ describe('UsersService', () => {
       const mockUsersList = [createMockUser()];
       prismaService.user.findMany.mockResolvedValue(mockUsersList);
 
-      const result = await service.findAll();
+      const result = await service.findAll({
+        search: '',
+        page: 1,
+        limit: 10,
+      });
 
       expect(result).toEqual(mockUsersList);
       expect(prismaService.user.findMany).toHaveBeenCalledTimes(1);
@@ -203,14 +207,22 @@ describe('UsersService', () => {
     it('should return empty array when no users exist', async () => {
       prismaService.user.findMany.mockResolvedValue([]);
 
-      const result = await service.findAll();
+      const result = await service.findAll({
+        search: '',
+        page: 1,
+        limit: 10,
+      });
 
       expect(result).toEqual([]);
       expect(prismaService.user.findMany).toHaveBeenCalledTimes(1);
     });
 
     it('should call database findMany method', async () => {
-      await service.findAll();
+      await service.findAll({
+        search: '',
+        page: 1,
+        limit: 10,
+      });
 
       expect(prismaService.user.findMany).toHaveBeenCalledTimes(1);
     });

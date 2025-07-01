@@ -8,6 +8,7 @@ import {
   Delete,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,7 +18,7 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto } from './dto';
+import { CreateUserDto, UpdateUserDto, SearchUsersDto } from './dto';
 
 @ApiTags('users')
 @Controller('users')
@@ -91,8 +92,8 @@ export class UsersController {
       ],
     },
   })
-  findAll() {
-    return this.usersService.findAll();
+  async findAll(@Query() query: SearchUsersDto) {
+    return this.usersService.findAll(query);
   }
 
   @Get(':id')
