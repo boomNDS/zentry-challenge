@@ -33,6 +33,35 @@ import { ApiPaginatedResponse } from '../common/dto/paginated-response.dto';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Get('network-graph')
+  @ApiOperation({ summary: 'Get user network graph by name' })
+  @ApiOkResponse({ description: 'User network graph' })
+  async getNetworkGraph(@Query('name') name: string) {
+    return this.usersService.getNetworkGraphByName(name);
+  }
+
+  @Get('leaderboard/network-strength')
+  @ApiOperation({ summary: 'Network strength leaderboard' })
+  @ApiOkResponse({ description: 'Ranked users by network strength' })
+  async getNetworkStrengthLeaderboard(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.usersService.getNetworkStrengthLeaderboard(from, to, limit);
+  }
+
+  @Get('leaderboard/referral-points')
+  @ApiOperation({ summary: 'Referral points leaderboard' })
+  @ApiOkResponse({ description: 'Ranked users by referral points' })
+  async getReferralPointsLeaderboard(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.usersService.getReferralPointsLeaderboard(from, to, limit);
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({

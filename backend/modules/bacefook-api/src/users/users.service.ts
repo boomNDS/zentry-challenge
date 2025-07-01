@@ -573,4 +573,115 @@ export class UsersService {
       networkStrength: f.networkStrength?.strength ?? 0,
     }));
   }
+
+  async getNetworkGraphByName(name: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ username: name }, { firstName: name }, { lastName: name }],
+      },
+      include: {
+        referredBy: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+          },
+        },
+        referrals: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+          },
+        },
+        friends: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    return {
+      user: {
+        id: user.id,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        avatar: user.avatar,
+      },
+      referredBy: user.referredBy,
+      referrals: user.referrals,
+      friends: user.friends,
+    };
+  }
+
+  async getNetworkStrengthLeaderboard(from?: string, to?: string, limit = 10) {
+    const where =
+      from && to
+        ? { calculatedAt: { gte: new Date(from), lte: new Date(to) } }
+        : {};
+
+    const leaderboard = await this.prisma.networkStrength.findMany({
+      where,
+      orderBy: { strength: 'desc' },
+      take: limit,
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    return leaderboard.map((entry) => ({
+      user: entry.user,
+      strength: entry.strength,
+      calculatedAt: entry.calculatedAt,
+    }));
+  }
+
+  async getReferralPointsLeaderboard(from?: string, to?: string, limit = 10) {
+    const where =
+      from && to
+        ? { updatedAt: { gte: new Date(from), lte: new Date(to) } }
+        : {};
+
+    const leaderboard = await this.prisma.referralPoint.findMany({
+      where,
+      orderBy: { points: 'desc' },
+      take: limit,
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    return leaderboard.map((entry) => ({
+      user: entry.user,
+      points: entry.points,
+      updatedAt: entry.updatedAt,
+    }));
+  }
 }
