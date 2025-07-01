@@ -303,6 +303,9 @@ export class UsersService {
   }
 
   async addFriend({ id, friendId }: IFriend) {
+    if (id === friendId) {
+      throw new ConflictException('You cannot be friends with yourself');
+    }
     const [user, friend] = await Promise.all([
       this.prisma.user.findUnique({ where: { id } }),
       this.prisma.user.findUnique({ where: { id: friendId } }),

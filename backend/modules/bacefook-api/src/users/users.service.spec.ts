@@ -275,4 +275,100 @@ describe('UsersService', () => {
       expect(prismaService.user.findUnique).toHaveBeenCalled();
     });
   });
+
+  describe('addFriend', () => {
+    it('should throw ConflictException if user tries to befriend themselves', async () => {
+      await expect(
+        service.addFriend({ id: 'user123', friendId: 'user123' }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('should throw NotFoundException if user does not exist', async () => {
+      prismaService.user.findUnique.mockResolvedValueOnce(null);
+      prismaService.user.findUnique.mockResolvedValueOnce(
+        createMockUser({ id: 'friend456' }),
+      );
+      await expect(
+        service.addFriend({ id: 'user123', friendId: 'friend456' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException if friend does not exist', async () => {
+      prismaService.user.findUnique.mockResolvedValueOnce(
+        createMockUser({ id: 'user123' }),
+      );
+      prismaService.user.findUnique.mockResolvedValueOnce(null);
+      await expect(
+        service.addFriend({ id: 'user123', friendId: 'friend456' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should add friends', async () => {
+      prismaService.user.findUnique.mockResolvedValue(
+        createMockUser({ id: 'user123' }),
+      );
+      prismaService.user.update.mockResolvedValue(createMockUser());
+      const result = await service.addFriend({
+        id: 'user123',
+        friendId: 'friend456',
+      });
+      expect(prismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'user123' },
+        data: { friends: { connect: { id: 'friend456' } } },
+      });
+      expect(prismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'friend456' },
+        data: { friends: { connect: { id: 'user123' } } },
+      });
+      expect(prismaService.event.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ type: 'addfriend' }),
+      });
+      expect(result).toEqual({ message: 'Friend added successfully' });
+    });
+  });
+
+  describe('removeFriend', () => {
+    it('should throw NotFoundException if user does not exist', async () => {
+      prismaService.user.findUnique.mockResolvedValueOnce(null);
+      prismaService.user.findUnique.mockResolvedValueOnce(
+        createMockUser({ id: 'friend456' }),
+      );
+      await expect(
+        service.removeFriend({ id: 'user123', friendId: 'friend456' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw NotFoundException if friend does not exist', async () => {
+      prismaService.user.findUnique.mockResolvedValueOnce(
+        createMockUser({ id: 'user123' }),
+      );
+      prismaService.user.findUnique.mockResolvedValueOnce(null);
+      await expect(
+        service.removeFriend({ id: 'user123', friendId: 'friend456' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should remove friends', async () => {
+      prismaService.user.findUnique.mockResolvedValue(
+        createMockUser({ id: 'user123' }),
+      );
+      prismaService.user.update.mockResolvedValue(createMockUser());
+      const result = await service.removeFriend({
+        id: 'user123',
+        friendId: 'friend456',
+      });
+      expect(prismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'user123' },
+        data: { friends: { disconnect: { id: 'friend456' } } },
+      });
+      expect(prismaService.user.update).toHaveBeenCalledWith({
+        where: { id: 'friend456' },
+        data: { friends: { disconnect: { id: 'user123' } } },
+      });
+      expect(prismaService.event.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ type: 'unfriend' }),
+      });
+      expect(result).toEqual({ message: 'Friend removed successfully' });
+    });
+  });
 });
