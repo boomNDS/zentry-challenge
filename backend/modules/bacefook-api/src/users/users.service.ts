@@ -52,6 +52,9 @@ export class UsersService {
 
     await this.referralPointService.awardReferralPoints(user.id, referredById);
 
+    // Update network strength
+    await this.updateNetworkStrength(user.id);
+
     await this.prisma.event.create({
       data: {
         type: 'register',
@@ -89,7 +92,9 @@ export class UsersService {
   }
 
   async findAll(query: SearchUsersDto) {
-    const { search, page = 1, limit = 10 } = query;
+    const search = query.search?.trim();
+    const page = Math.max(Number(query.page) || 1, 1);
+    const limit = Math.max(Number(query.limit) || 10, 1);
 
     const where = search
       ? {
@@ -137,29 +142,26 @@ export class UsersService {
       this.prisma.user.count({ where }),
     ]);
 
+    const totalPages = Math.max(Math.ceil(total / limit), 1);
+    const currentPage = Math.min(page, totalPages);
+
     const formattedUsers =
-      users?.map((user) => ({
-        id: user.id,
-        email: user.email,
-        username: user.username,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        bio: user.bio,
-        avatar: user.avatar,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        friends: user.friends,
-        referrals: user.referrals,
-        referralPoints: user.referralPoints?.[0]?.points ?? 0,
-        networkStrength: user.networkStrength?.strength ?? 0,
-      })) || [];
+      users?.map((user) =>
+        mapUserProfile({
+          ...user,
+          friends: [],
+          referrals: [],
+          referralPoints: [],
+          networkStrength: { strength: 0 },
+        }),
+      ) || [];
 
     return {
       data: formattedUsers,
       total,
-      page,
+      page: currentPage,
       limit,
-      totalPages: Math.ceil(total / limit),
+      totalPages,
     };
   }
 
@@ -197,8 +199,12 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
+    const networkStrength = await this.calculateNetworkStrength(id);
 
-    return mapUserProfile(user);
+    return mapUserProfile({
+      ...user,
+      networkStrength: { strength: networkStrength },
+    });
   }
 
   async update(id: string, updateUserDto: UpdateUserDto) {
@@ -323,6 +329,10 @@ export class UsersService {
       data: { friends: { connect: { id } } },
     });
 
+    // Update network strength for both users
+    await this.updateNetworkStrength(id);
+    await this.updateNetworkStrength(friendId);
+
     await this.prisma.event.create({
       data: {
         type: 'addfriend',
@@ -356,6 +366,10 @@ export class UsersService {
       data: { friends: { disconnect: { id } } },
     });
 
+    // Update network strength for both users
+    await this.updateNetworkStrength(id);
+    await this.updateNetworkStrength(friendId);
+
     await this.prisma.event.create({
       data: {
         type: 'unfriend',
@@ -369,5 +383,78 @@ export class UsersService {
     });
 
     return { message: 'Friend removed successfully' };
+  }
+
+  async getFriends(id: string, query: SearchUsersDto) {
+    const limit = query.limit ?? 10;
+    const page = query.page ?? 1;
+
+    const userWithCount = await this.prisma.user.findUnique({
+      where: { id },
+      include: { _count: { select: { friends: true } } },
+    });
+
+    if (!userWithCount) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    const total = userWithCount._count.friends;
+    const totalPages = Math.max(Math.ceil(total / limit), 1);
+    const currentPage = Math.min(Math.max(page, 1), totalPages);
+    const skip = (currentPage - 1) * limit;
+
+    const userWithFriends = await this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        friends: {
+          skip,
+          take: limit,
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+          },
+        },
+      },
+    });
+
+    if (!userWithFriends) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    return {
+      data: userWithFriends.friends,
+      total,
+      page: currentPage,
+      limit,
+      totalPages,
+    };
+  }
+
+  async calculateNetworkStrength(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        friends: true,
+        referrals: true,
+        referredBy: true,
+      },
+    });
+    if (!user) return 0;
+    const friendCount = user.friends.length;
+    const referralCount = user.referrals.length;
+    const hasReferrer = user.referredBy ? 1 : 0;
+    return friendCount + referralCount + hasReferrer;
+  }
+
+  async updateNetworkStrength(userId: string) {
+    const strength = await this.calculateNetworkStrength(userId);
+    await this.prisma.networkStrength.upsert({
+      where: { userId },
+      update: { strength, calculatedAt: new Date() },
+      create: { userId, strength },
+    });
   }
 }

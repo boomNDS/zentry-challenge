@@ -19,6 +19,9 @@ type MockPrismaService = {
   event: {
     create: jest.MockedFunction<PrismaService['event']['create']>;
   };
+  networkStrength: {
+    upsert: jest.MockedFunction<PrismaService['networkStrength']['upsert']>;
+  };
 };
 
 describe('UsersService', () => {
@@ -44,6 +47,9 @@ describe('UsersService', () => {
             },
             event: {
               create: jest.fn(),
+            },
+            networkStrength: {
+              upsert: jest.fn(),
             },
           } as MockPrismaService,
         },
@@ -236,7 +242,7 @@ describe('UsersService', () => {
       const { referredById, ...expectedUser } = mockUser;
       const result = await service.findOne(userId);
       expect(result).toEqual(expectedUser);
-      expect(prismaService.user.findUnique).toHaveBeenCalledTimes(1);
+      expect(prismaService.user.findUnique).toHaveBeenCalledTimes(2);
       expect(prismaService.user.findUnique).toHaveBeenCalledWith({
         where: { id: userId },
         include: {
@@ -369,6 +375,59 @@ describe('UsersService', () => {
         data: expect.objectContaining({ type: 'unfriend' }),
       });
       expect(result).toEqual({ message: 'Friend removed successfully' });
+    });
+  });
+
+  describe('calculateNetworkStrength', () => {
+    it('should return 0 if user does not exist', async () => {
+      prismaService.user.findUnique.mockResolvedValue(null);
+      const result = await service.calculateNetworkStrength('user123');
+      expect(result).toBe(0);
+      expect(prismaService.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'user123' },
+        include: {
+          friends: true,
+          referrals: true,
+          referredBy: true,
+        },
+      });
+    });
+
+    it('should calculate correct network strength', async () => {
+      const mockUser = {
+        ...createMockUser({ id: 'user123' }),
+        friends: [{}, {}, {}] as Array<unknown>,
+        referrals: [{}, {}] as Array<unknown>,
+        referredBy: { id: 'referrer1' } as object | null,
+      };
+      prismaService.user.findUnique.mockResolvedValue(mockUser);
+      const result = await service.calculateNetworkStrength('user123');
+      expect(result).toBe(6);
+    });
+
+    it('should calculate correct network strength with no referrer', async () => {
+      const mockUser = {
+        ...createMockUser({ id: 'user123' }),
+        friends: [{}] as Array<unknown>,
+        referrals: [] as Array<unknown>,
+        referredBy: null as object | null,
+      };
+      prismaService.user.findUnique.mockResolvedValue(mockUser);
+      const result = await service.calculateNetworkStrength('user123');
+      expect(result).toBe(1);
+    });
+  });
+
+  describe('updateNetworkStrength', () => {
+    it('should upsert network strength with calculated value', async () => {
+      jest.spyOn(service, 'calculateNetworkStrength').mockResolvedValue(7);
+      await service.updateNetworkStrength('user123');
+      expect(service.calculateNetworkStrength).toHaveBeenCalledWith('user123');
+      expect(prismaService.networkStrength.upsert).toHaveBeenCalledWith({
+        where: { userId: 'user123' },
+        update: { strength: 7, calculatedAt: expect.any(Date) },
+        create: { userId: 'user123', strength: 7 },
+      });
     });
   });
 });

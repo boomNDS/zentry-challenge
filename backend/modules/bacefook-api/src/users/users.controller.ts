@@ -16,10 +16,17 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiOkResponse,
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto, SearchUsersDto } from './dto';
-import { FriendDto } from './dto/friend.dto';
+import {
+  CreateUserDto,
+  UpdateUserDto,
+  SearchUsersDto,
+  UserProfileDto,
+} from './dto';
+import { FriendDto, FriendResponseDto } from './dto/friend.dto';
+import { ApiPaginatedResponse } from '../common/dto/paginated-response.dto';
 
 @ApiTags('users')
 @Controller('users')
@@ -39,19 +46,6 @@ export class UsersController {
   @ApiResponse({
     status: 201,
     description: 'User created successfully',
-    schema: {
-      example: {
-        id: 'clx1234567890abcdef',
-        email: 'john.doe@example.com',
-        username: 'john_doe',
-        firstName: 'John',
-        lastName: 'Doe',
-        bio: 'Software developer',
-        avatar: 'https://example.com/avatar.jpg',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-      },
-    },
   })
   @ApiResponse({
     status: 400,
@@ -70,29 +64,8 @@ export class UsersController {
     summary: 'Get all users',
     description: 'Retrieves a list of all users with their basic information',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'List of users retrieved successfully',
-    schema: {
-      example: [
-        {
-          id: 'clx1234567890abcdef',
-          email: 'john.doe@example.com',
-          username: 'john_doe',
-          firstName: 'John',
-          lastName: 'Doe',
-          bio: 'Software developer',
-          avatar: 'https://example.com/avatar.jpg',
-          createdAt: '2024-01-01T00:00:00.000Z',
-          _count: {
-            posts: 5,
-            followers: 10,
-            following: 8,
-          },
-        },
-      ],
-    },
-  })
+  @ApiOkResponse({ description: 'List of users retrieved successfully' })
+  @ApiPaginatedResponse(UserProfileDto)
   async findAll(@Query() query: SearchUsersDto) {
     return this.usersService.findAll(query);
   }
@@ -110,36 +83,6 @@ export class UsersController {
   @ApiResponse({
     status: 200,
     description: 'User details retrieved successfully',
-    schema: {
-      example: {
-        id: 'clx1234567890abcdef',
-        email: 'john.doe@example.com',
-        username: 'john_doe',
-        firstName: 'John',
-        lastName: 'Doe',
-        bio: 'Software developer',
-        avatar: 'https://example.com/avatar.jpg',
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-        _count: {
-          posts: 5,
-          followers: 10,
-          following: 8,
-        },
-        posts: [
-          {
-            id: 'clx1234567890abcdef',
-            content: 'Hello world!',
-            imageUrl: null,
-            createdAt: '2024-01-01T00:00:00.000Z',
-            _count: {
-              likes: 3,
-              comments: 2,
-            },
-          },
-        ],
-      },
-    },
   })
   @ApiResponse({
     status: 404,
@@ -231,5 +174,17 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Friend removed successfully' })
   async removeFriend(@Param('id') id: string, @Body() body: FriendDto) {
     return this.usersService.removeFriend({ id, friendId: body.friendId });
+  }
+
+  @Get(':id/friends')
+  @ApiOperation({
+    summary: 'Get paginated friends list',
+    description: 'Returns a paginated list of a user’s friends',
+  })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiOkResponse({ description: 'Paginated friends list' })
+  @ApiPaginatedResponse(FriendResponseDto)
+  async getFriends(@Param('id') id: string, @Query() query: SearchUsersDto) {
+    return this.usersService.getFriends(id, query);
   }
 }
