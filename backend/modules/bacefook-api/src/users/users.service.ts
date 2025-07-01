@@ -7,10 +7,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, SearchUsersDto, UpdateUserDto } from './dto';
 import { mapUserProfile } from '../common/user.util';
 import { IFriend } from './interface/user.interface';
+import { ReferralPointService } from '../referral-point/referral-point.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private referralPointService: ReferralPointService,
+  ) {}
 
   async create(createUserDto: CreateUserDto) {
     const existingUser = await this.prisma.user.findFirst({
@@ -45,6 +49,8 @@ export class UsersService {
         referredById,
       },
     });
+
+    await this.referralPointService.awardReferralPoints(user.id, referredById);
 
     await this.prisma.event.create({
       data: {
@@ -131,21 +137,22 @@ export class UsersService {
       this.prisma.user.count({ where }),
     ]);
 
-    const formattedUsers = users.map((user) => ({
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      bio: user.bio,
-      avatar: user.avatar,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt,
-      friends: user.friends,
-      referrals: user.referrals,
-      referralPoints: user.referralPoints?.[0]?.points ?? 0,
-      networkStrength: user.networkStrength?.strength ?? 0,
-    }));
+    const formattedUsers =
+      users?.map((user) => ({
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        bio: user.bio,
+        avatar: user.avatar,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+        friends: user.friends,
+        referrals: user.referrals,
+        referralPoints: user.referralPoints?.[0]?.points ?? 0,
+        networkStrength: user.networkStrength?.strength ?? 0,
+      })) || [];
 
     return {
       data: formattedUsers,

@@ -3,3 +3,33 @@ node_modules
 .env
 
 /generated/prisma
+
+# NestJS build output
+dist/
+build/
+
+# Logs
+*.log
+logs/
+
+# Coverage directory
+coverage/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test output
+*.tsbuildinfo
+
+# Ignore local environment and config
+.env.*
+
+# Ignore Prisma generated files (if any)
+prisma/generated/
+
+d

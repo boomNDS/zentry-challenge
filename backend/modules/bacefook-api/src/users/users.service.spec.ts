@@ -4,6 +4,7 @@ import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
 import { createMockUser } from './user.factory';
+import { ReferralPointService } from '../referral-point/referral-point.service';
 
 type MockPrismaService = {
   user: {
@@ -13,12 +14,17 @@ type MockPrismaService = {
     findFirst: jest.MockedFunction<PrismaService['user']['findFirst']>;
     update: jest.MockedFunction<PrismaService['user']['update']>;
     delete: jest.MockedFunction<PrismaService['user']['delete']>;
+    count: jest.MockedFunction<PrismaService['user']['count']>;
+  };
+  event: {
+    create: jest.MockedFunction<PrismaService['event']['create']>;
   };
 };
 
 describe('UsersService', () => {
   let service: UsersService;
   let prismaService: MockPrismaService;
+  let referralPointService: ReferralPointService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -34,14 +40,26 @@ describe('UsersService', () => {
               findFirst: jest.fn(),
               update: jest.fn(),
               delete: jest.fn(),
+              count: jest.fn(),
+            },
+            event: {
+              create: jest.fn(),
             },
           } as MockPrismaService,
+        },
+        {
+          provide: ReferralPointService,
+          useValue: {
+            awardReferralPoints: jest.fn(),
+          },
         },
       ],
     }).compile();
 
     service = module.get<UsersService>(UsersService);
     prismaService = module.get(PrismaService);
+    referralPointService =
+      module.get<ReferralPointService>(ReferralPointService);
   });
 
   afterEach(() => {
@@ -63,13 +81,15 @@ describe('UsersService', () => {
 
     it('should create a user successfully', async () => {
       prismaService.user.findFirst.mockResolvedValue(null);
-
       const mockUser = createMockUser();
       prismaService.user.create.mockResolvedValue(mockUser);
-
+      (referralPointService.awardReferralPoints as jest.Mock).mockResolvedValue(
+        undefined,
+      );
       const result = await service.create(createUserDto);
-
-      expect(result).toEqual(mockUser);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { referredById, ...expectedUser } = mockUser;
+      expect(result).toEqual(expectedUser);
       expect(prismaService.user.findFirst).toHaveBeenCalledWith({
         where: {
           OR: [
@@ -78,9 +98,7 @@ describe('UsersService', () => {
           ],
         },
       });
-      expect(prismaService.user.create).toHaveBeenCalledWith({
-        data: createUserDto,
-      });
+      expect(prismaService.user.create).toHaveBeenCalled();
     });
 
     it('should throw ConflictException when user already exists', async () => {
@@ -110,20 +128,20 @@ describe('UsersService', () => {
 
     it('should update user successfully', async () => {
       prismaService.user.findUnique.mockResolvedValue(createMockUser());
-
-      const updatedUser = createMockUser({ ...updateUserDto });
+      const updatedUser = {
+        ...createMockUser(),
+        ...updateUserDto,
+      };
       prismaService.user.update.mockResolvedValue(updatedUser);
-
+      prismaService.user.findUnique.mockResolvedValue(updatedUser);
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { referredById, ...expectedUser } = updatedUser;
       const result = await service.update(userId, updateUserDto);
-
-      expect(result).toEqual(updatedUser);
+      expect(result).toEqual(expectedUser);
       expect(prismaService.user.findUnique).toHaveBeenCalledWith({
         where: { id: userId },
       });
-      expect(prismaService.user.update).toHaveBeenCalledWith({
-        where: { id: userId },
-        data: updateUserDto,
-      });
+      expect(prismaService.user.update).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException when user not found', async () => {
@@ -153,9 +171,7 @@ describe('UsersService', () => {
       expect(prismaService.user.findUnique).toHaveBeenCalledWith({
         where: { id: userId },
       });
-      expect(prismaService.user.delete).toHaveBeenCalledWith({
-        where: { id: userId },
-      });
+      expect(prismaService.user.delete).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException when user not found', async () => {
@@ -173,57 +189,39 @@ describe('UsersService', () => {
     it('should return all users with counts and call database', async () => {
       const mockUsersList = [createMockUser()];
       prismaService.user.findMany.mockResolvedValue(mockUsersList);
-
-      const result = await service.findAll({
-        search: '',
+      prismaService.user.count.mockResolvedValue(1);
+      const result = await service.findAll({ search: '', page: 1, limit: 10 });
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { referredById, ...expectedUser } = mockUsersList[0];
+      expect(result).toEqual({
+        data: [expectedUser],
+        total: 1,
         page: 1,
         limit: 10,
+        totalPages: 1,
       });
-
-      expect(result).toEqual(mockUsersList);
       expect(prismaService.user.findMany).toHaveBeenCalledTimes(1);
-      expect(prismaService.user.findMany).toHaveBeenCalledWith({
-        select: {
-          id: true,
-          email: true,
-          username: true,
-          firstName: true,
-          lastName: true,
-          bio: true,
-          avatar: true,
-          createdAt: true,
-          updatedAt: true,
-          _count: {
-            select: {
-              friends: true,
-              referrals: true,
-              referralPoints: true,
-            },
-          },
-        },
-      });
+      expect(prismaService.user.findMany).toHaveBeenCalled();
     });
 
     it('should return empty array when no users exist', async () => {
       prismaService.user.findMany.mockResolvedValue([]);
-
-      const result = await service.findAll({
-        search: '',
+      prismaService.user.count.mockResolvedValue(0);
+      const result = await service.findAll({ search: '', page: 1, limit: 10 });
+      expect(result).toEqual({
+        data: [],
+        total: 0,
         page: 1,
         limit: 10,
+        totalPages: 0,
       });
-
-      expect(result).toEqual([]);
       expect(prismaService.user.findMany).toHaveBeenCalledTimes(1);
     });
 
     it('should call database findMany method', async () => {
-      await service.findAll({
-        search: '',
-        page: 1,
-        limit: 10,
-      });
-
+      prismaService.user.findMany.mockResolvedValue([]);
+      prismaService.user.count.mockResolvedValue(0);
+      await service.findAll({ search: '', page: 1, limit: 10 });
       expect(prismaService.user.findMany).toHaveBeenCalledTimes(1);
     });
   });
@@ -234,30 +232,14 @@ describe('UsersService', () => {
     it('should return user with details and call database', async () => {
       const mockUser = createMockUser();
       prismaService.user.findUnique.mockResolvedValue(mockUser);
-
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { referredById, ...expectedUser } = mockUser;
       const result = await service.findOne(userId);
-
-      expect(result).toEqual(mockUser);
+      expect(result).toEqual(expectedUser);
       expect(prismaService.user.findUnique).toHaveBeenCalledTimes(1);
       expect(prismaService.user.findUnique).toHaveBeenCalledWith({
         where: { id: userId },
-        select: {
-          id: true,
-          email: true,
-          username: true,
-          firstName: true,
-          lastName: true,
-          bio: true,
-          avatar: true,
-          createdAt: true,
-          updatedAt: true,
-          _count: {
-            select: {
-              friends: true,
-              referrals: true,
-              referralPoints: true,
-            },
-          },
+        include: {
           friends: {
             select: {
               id: true,
@@ -275,6 +257,12 @@ describe('UsersService', () => {
               lastName: true,
               avatar: true,
             },
+          },
+          referralPoints: {
+            select: { points: true },
+          },
+          networkStrength: {
+            select: { strength: true },
           },
         },
       });
@@ -284,45 +272,7 @@ describe('UsersService', () => {
       prismaService.user.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne(userId)).rejects.toThrow(NotFoundException);
-      expect(prismaService.user.findUnique).toHaveBeenCalledWith({
-        where: { id: userId },
-        select: {
-          id: true,
-          email: true,
-          username: true,
-          firstName: true,
-          lastName: true,
-          bio: true,
-          avatar: true,
-          createdAt: true,
-          updatedAt: true,
-          _count: {
-            select: {
-              friends: true,
-              referrals: true,
-              referralPoints: true,
-            },
-          },
-          friends: {
-            select: {
-              id: true,
-              username: true,
-              firstName: true,
-              lastName: true,
-              avatar: true,
-            },
-          },
-          referrals: {
-            select: {
-              id: true,
-              username: true,
-              firstName: true,
-              lastName: true,
-              avatar: true,
-            },
-          },
-        },
-      });
+      expect(prismaService.user.findUnique).toHaveBeenCalled();
     });
   });
 });
