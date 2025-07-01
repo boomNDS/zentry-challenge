@@ -1,3 +1,11 @@
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: JsonValue }
+  | JsonValue[];
+
 export function createMockUser(overrides = {}) {
   return {
     id: 'clx1234567890abcdef',
@@ -17,3 +25,22 @@ export function createMockUser(overrides = {}) {
     ...overrides,
   };
 }
+
+export function createMockEvent(overrides?: Partial<MockEvent>): MockEvent {
+  return {
+    id: 'evt_' + Math.random().toString(36).slice(2, 10),
+    type: 'addfriend',
+    data: { user1Id: 'user123', user2Id: 'user456' },
+    createdAt: new Date(),
+    processed: true,
+    ...overrides,
+  };
+}
+
+type MockEvent = {
+  id: string;
+  type: string;
+  data: JsonValue;
+  createdAt: Date;
+  processed: boolean;
+};

@@ -483,7 +483,6 @@ export class UsersService {
       select: { createdAt: true },
     });
 
-    // Group by date (YYYY-MM-DD)
     const series: Record<string, number> = {};
     referrals.forEach((r) => {
       const date = r.createdAt.toISOString().slice(0, 10);

@@ -3,7 +3,7 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
-import { createMockUser } from './user.factory';
+import { createMockEvent, createMockUser } from './user.factory';
 import { ReferralPointService } from '../referral-point/referral-point.service';
 import { FriendResponseDto } from './dto/friend.dto';
 
@@ -48,6 +48,8 @@ type MockPrismaService = {
   };
   event: {
     create: jest.MockedFunction<PrismaService['event']['create']>;
+    findMany: jest.MockedFunction<PrismaService['event']['findMany']>;
+    count: jest.MockedFunction<PrismaService['event']['count']>;
   };
   networkStrength: {
     upsert: jest.MockedFunction<PrismaService['networkStrength']['upsert']>;
@@ -68,6 +70,20 @@ type ReferralPointWithUser = {
   user: FriendResponseDto;
   points: number;
   updatedAt: Date;
+};
+
+type MockFriendWithNetworkStrength = {
+  id: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  avatar: string;
+  networkStrength?: { strength: number };
+  email: string;
+  bio: string;
+  createdAt: Date;
+  updatedAt: Date;
+  referredById: string | null;
 };
 
 describe('UsersService', () => {
@@ -93,6 +109,8 @@ describe('UsersService', () => {
             },
             event: {
               create: jest.fn(),
+              findMany: jest.fn(),
+              count: jest.fn(),
             },
             networkStrength: {
               upsert: jest.fn(),
@@ -478,6 +496,220 @@ describe('UsersService', () => {
         update: { strength: 7, calculatedAt: expect.any(Date) },
         create: { userId: 'user123', strength: 7 },
       });
+    });
+  });
+
+  // ... existing code ...
+
+  describe('getReferralCount', () => {
+    it('should return the referral count for a user in a date range', async () => {
+      prismaService.user.count.mockResolvedValue(5);
+      const result = await service.getReferralCount(
+        'user123',
+        '2025-07-01',
+        '2025-07-10',
+      );
+      expect(result).toEqual({ count: 5 });
+      expect(prismaService.user.count).toHaveBeenCalledWith({
+        where: {
+          referredById: 'user123',
+          createdAt: {
+            gte: new Date('2025-07-01'),
+            lte: new Date('2025-07-10'),
+          },
+        },
+      });
+    });
+  });
+
+  describe('getReferralTimeseries', () => {
+    it('should return timeseries data for referrals', async () => {
+      prismaService.user.findMany.mockResolvedValue([
+        createMockUser({ createdAt: new Date('2025-07-01T12:00:00Z') }),
+        createMockUser({ createdAt: new Date('2025-07-01T15:00:00Z') }),
+        createMockUser({ createdAt: new Date('2025-07-02T10:00:00Z') }),
+      ]);
+      const result = await service.getReferralTimeseries(
+        'user123',
+        '2025-07-01',
+        '2025-07-10',
+      );
+      expect(result).toEqual({
+        series: [
+          { date: '2025-07-01', count: 2 },
+          { date: '2025-07-02', count: 1 },
+        ],
+      });
+      expect(prismaService.user.findMany).toHaveBeenCalledWith({
+        where: {
+          referredById: 'user123',
+          createdAt: {
+            gte: new Date('2025-07-01'),
+            lte: new Date('2025-07-10'),
+          },
+        },
+        select: { createdAt: true },
+      });
+    });
+  });
+
+  describe('getFriendsCount', () => {
+    it('should return the friends count for a user in a date range', async () => {
+      prismaService.event.count.mockResolvedValue(3);
+      const result = await service.getFriendsCount(
+        'user123',
+        '2025-07-01',
+        '2025-07-10',
+      );
+      expect(result).toEqual({ count: 3 });
+      expect(prismaService.event.count).toHaveBeenCalledWith({
+        where: {
+          type: 'addfriend',
+          data: {
+            path: ['user1Id'],
+            equals: 'user123',
+          },
+          createdAt: {
+            gte: new Date('2025-07-01'),
+            lte: new Date('2025-07-10'),
+          },
+        },
+      });
+    });
+  });
+
+  describe('getFriendsTimeseries', () => {
+    it('should return timeseries data for friends added', async () => {
+      const events = [
+        createMockEvent({ createdAt: new Date('2025-07-01T12:00:00Z') }),
+        createMockEvent({ createdAt: new Date('2025-07-01T15:00:00Z') }),
+        createMockEvent({ createdAt: new Date('2025-07-02T10:00:00Z') }),
+      ];
+      prismaService.event.findMany.mockResolvedValue(events);
+      const result = await service.getFriendsTimeseries(
+        'user123',
+        '2025-07-01',
+        '2025-07-10',
+      );
+      expect(result).toEqual({
+        series: [
+          { date: '2025-07-01', count: 2 },
+          { date: '2025-07-02', count: 1 },
+        ],
+      });
+      expect(prismaService.event.findMany).toHaveBeenCalledWith({
+        where: {
+          type: 'addfriend',
+          data: {
+            path: ['user1Id'],
+            equals: 'user123',
+          },
+          createdAt: {
+            gte: new Date('2025-07-01'),
+            lte: new Date('2025-07-10'),
+          },
+        },
+        select: { createdAt: true },
+      });
+    });
+  });
+
+  describe('getTopInfluentialFriends', () => {
+    it('should return top 3 influential friends', async () => {
+      prismaService.user.findUnique.mockResolvedValue({
+        id: 'user123',
+        friends: [{ id: 'friend1' }, { id: 'friend2' }, { id: 'friend3' }],
+      } as any);
+
+      const friends: MockFriendWithNetworkStrength[] = [
+        {
+          id: 'friend1',
+          username: 'bob',
+          firstName: 'Bob',
+          lastName: 'Builder',
+          avatar: 'bob.jpg',
+          networkStrength: { strength: 10 },
+          email: 'bob@example.com',
+          bio: 'Bob the builder',
+          createdAt: new Date('2025-07-01T00:00:00Z'),
+          updatedAt: new Date('2025-07-01T00:00:00Z'),
+          referredById: null,
+        },
+        {
+          id: 'friend2',
+          username: 'carol',
+          firstName: 'Carol',
+          lastName: 'Smith',
+          avatar: 'carol.jpg',
+          networkStrength: { strength: 8 },
+          email: 'carol@example.com',
+          bio: 'Carol the friend',
+          createdAt: new Date('2025-07-01T00:00:00Z'),
+          updatedAt: new Date('2025-07-01T00:00:00Z'),
+          referredById: null,
+        },
+        {
+          id: 'friend3',
+          username: 'dave',
+          firstName: 'Dave',
+          lastName: 'Jones',
+          avatar: 'dave.jpg',
+          networkStrength: { strength: 5 },
+          email: 'dave@example.com',
+          bio: 'Dave the pal',
+          createdAt: new Date('2025-07-01T00:00:00Z'),
+          updatedAt: new Date('2025-07-01T00:00:00Z'),
+          referredById: null,
+        },
+      ];
+      prismaService.user.findMany.mockResolvedValue(friends);
+
+      const result = await service.getTopInfluentialFriends('user123');
+      expect(result).toEqual([
+        {
+          id: 'friend1',
+          username: 'bob',
+          firstName: 'Bob',
+          lastName: 'Builder',
+          avatar: 'bob.jpg',
+          networkStrength: 10,
+        },
+        {
+          id: 'friend2',
+          username: 'carol',
+          firstName: 'Carol',
+          lastName: 'Smith',
+          avatar: 'carol.jpg',
+          networkStrength: 8,
+        },
+        {
+          id: 'friend3',
+          username: 'dave',
+          firstName: 'Dave',
+          lastName: 'Jones',
+          avatar: 'dave.jpg',
+          networkStrength: 5,
+        },
+      ]);
+      expect(prismaService.user.findUnique).toHaveBeenCalled();
+      expect(prismaService.user.findMany).toHaveBeenCalled();
+    });
+
+    it('should return empty if user has no friends', async () => {
+      prismaService.user.findUnique.mockResolvedValue({
+        id: 'user123',
+        friends: [],
+      } as any);
+
+      const result = await service.getTopInfluentialFriends('user123');
+      expect(result).toEqual([]);
+    });
+
+    it('should throw NotFoundException if user not found', async () => {
+      prismaService.user.findUnique.mockResolvedValue(null);
+      await expect(service.getTopInfluentialFriends('user123')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
