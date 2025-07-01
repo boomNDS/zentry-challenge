@@ -5,6 +5,36 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto';
 import { createMockUser } from './user.factory';
 import { ReferralPointService } from '../referral-point/referral-point.service';
+import { FriendResponseDto } from './dto/friend.dto';
+
+type MockUserWithRelations = {
+  id: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  avatar: string;
+  referredBy?: {
+    id: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    avatar: string;
+  };
+  referrals: Array<{
+    id: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    avatar: string;
+  }>;
+  friends: Array<{
+    id: string;
+    username: string;
+    firstName: string;
+    lastName: string;
+    avatar: string;
+  }>;
+};
 
 type MockPrismaService = {
   user: {
@@ -21,7 +51,23 @@ type MockPrismaService = {
   };
   networkStrength: {
     upsert: jest.MockedFunction<PrismaService['networkStrength']['upsert']>;
+    findMany: jest.MockedFunction<PrismaService['networkStrength']['findMany']>;
   };
+  referralPoint: {
+    findMany: jest.MockedFunction<PrismaService['referralPoint']['findMany']>;
+  };
+};
+
+type NetworkStrengthWithUser = {
+  user: FriendResponseDto;
+  strength: number;
+  calculatedAt: Date;
+};
+
+type ReferralPointWithUser = {
+  user: FriendResponseDto;
+  points: number;
+  updatedAt: Date;
 };
 
 describe('UsersService', () => {
@@ -50,6 +96,10 @@ describe('UsersService', () => {
             },
             networkStrength: {
               upsert: jest.fn(),
+              findMany: jest.fn(),
+            },
+            referralPoint: {
+              findMany: jest.fn(),
             },
           } as MockPrismaService,
         },
@@ -428,6 +478,227 @@ describe('UsersService', () => {
         update: { strength: 7, calculatedAt: expect.any(Date) },
         create: { userId: 'user123', strength: 7 },
       });
+    });
+  });
+
+  describe('getNetworkGraphByName', () => {
+    it('should return user network graph by name', async () => {
+      const mockUser: MockUserWithRelations & {
+        email: string;
+        bio: string;
+        createdAt: Date;
+        updatedAt: Date;
+        referredById: string | null;
+      } = {
+        id: 'user123',
+        username: 'alice',
+        firstName: 'Alice',
+        lastName: 'Wonderland',
+        avatar: 'avatar.jpg',
+        email: 'alice@example.com',
+        bio: 'Just Alice',
+        createdAt: new Date('2025-07-01T00:00:00Z'),
+        updatedAt: new Date('2025-07-01T00:00:00Z'),
+        referredById: null,
+        referredBy: {
+          id: 'ref1',
+          username: 'bob',
+          firstName: 'Bob',
+          lastName: 'Builder',
+          avatar: 'bob.jpg',
+        },
+        referrals: [
+          {
+            id: 'ref2',
+            username: 'charlie',
+            firstName: 'Charlie',
+            lastName: 'Day',
+            avatar: 'charlie.jpg',
+          },
+        ],
+        friends: [
+          {
+            id: 'ref3',
+            username: 'dave',
+            firstName: 'Dave',
+            lastName: 'Smith',
+            avatar: 'dave.jpg',
+          },
+        ],
+      };
+
+      prismaService.user.findFirst.mockResolvedValue(mockUser);
+
+      const result = await service.getNetworkGraphByName('alice');
+      expect(result).toEqual({
+        user: {
+          id: 'user123',
+          username: 'alice',
+          firstName: 'Alice',
+          lastName: 'Wonderland',
+          avatar: 'avatar.jpg',
+        },
+        referredBy: {
+          id: 'ref1',
+          username: 'bob',
+          firstName: 'Bob',
+          lastName: 'Builder',
+          avatar: 'bob.jpg',
+        },
+        referrals: [
+          {
+            id: 'ref2',
+            username: 'charlie',
+            firstName: 'Charlie',
+            lastName: 'Day',
+            avatar: 'charlie.jpg',
+          },
+        ],
+        friends: [
+          {
+            id: 'ref3',
+            username: 'dave',
+            firstName: 'Dave',
+            lastName: 'Smith',
+            avatar: 'dave.jpg',
+          },
+        ],
+      });
+      expect(prismaService.user.findFirst).toHaveBeenCalledWith({
+        where: {
+          OR: [
+            { username: 'alice' },
+            { firstName: 'alice' },
+            { lastName: 'alice' },
+          ],
+        },
+        include: expect.any(Object),
+      });
+    });
+
+    it('should throw NotFoundException if user not found', async () => {
+      prismaService.user.findFirst.mockResolvedValue(null);
+      await expect(service.getNetworkGraphByName('notfound')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('getNetworkStrengthLeaderboard', () => {
+    it('should return top users by network strength', async () => {
+      (
+        prismaService.networkStrength.findMany as unknown as jest.Mock<
+          Promise<NetworkStrengthWithUser[]>
+        >
+      ).mockResolvedValue([
+        {
+          user: {
+            id: 'user1',
+            username: 'alice',
+            firstName: 'Alice',
+            lastName: 'Wonderland',
+            avatar: 'a.jpg',
+          },
+          strength: 10,
+          calculatedAt: new Date('2025-07-01T00:00:00Z'),
+        },
+        {
+          user: {
+            id: 'user2',
+            username: 'bob',
+            firstName: 'Bob',
+            lastName: 'Builder',
+            avatar: 'b.jpg',
+          },
+          strength: 8,
+          calculatedAt: new Date('2025-07-01T00:00:00Z'),
+        },
+      ]);
+      const result = await service.getNetworkStrengthLeaderboard();
+      expect(result).toEqual([
+        {
+          user: {
+            id: 'user1',
+            username: 'alice',
+            firstName: 'Alice',
+            lastName: 'Wonderland',
+            avatar: 'a.jpg',
+          },
+          strength: 10,
+          calculatedAt: new Date('2025-07-01T00:00:00Z'),
+        },
+        {
+          user: {
+            id: 'user2',
+            username: 'bob',
+            firstName: 'Bob',
+            lastName: 'Builder',
+            avatar: 'b.jpg',
+          },
+          strength: 8,
+          calculatedAt: new Date('2025-07-01T00:00:00Z'),
+        },
+      ]);
+      expect(prismaService.networkStrength.findMany).toHaveBeenCalled();
+    });
+  });
+
+  describe('getReferralPointsLeaderboard', () => {
+    it('should return top users by referral points', async () => {
+      (
+        prismaService.referralPoint.findMany as unknown as jest.Mock<
+          Promise<ReferralPointWithUser[]>
+        >
+      ).mockResolvedValue([
+        {
+          user: {
+            id: 'user1',
+            username: 'alice',
+            firstName: 'Alice',
+            lastName: 'Wonderland',
+            avatar: 'a.jpg',
+          },
+          points: 5,
+          updatedAt: new Date('2025-07-01T00:00:00Z'),
+        },
+        {
+          user: {
+            id: 'user2',
+            username: 'bob',
+            firstName: 'Bob',
+            lastName: 'Builder',
+            avatar: 'b.jpg',
+          },
+          points: 3,
+          updatedAt: new Date('2025-07-01T00:00:00Z'),
+        },
+      ]);
+      const result = await service.getReferralPointsLeaderboard();
+      expect(result).toEqual([
+        {
+          user: {
+            id: 'user1',
+            username: 'alice',
+            firstName: 'Alice',
+            lastName: 'Wonderland',
+            avatar: 'a.jpg',
+          },
+          points: 5,
+          updatedAt: new Date('2025-07-01T00:00:00Z'),
+        },
+        {
+          user: {
+            id: 'user2',
+            username: 'bob',
+            firstName: 'Bob',
+            lastName: 'Builder',
+            avatar: 'b.jpg',
+          },
+          points: 3,
+          updatedAt: new Date('2025-07-01T00:00:00Z'),
+        },
+      ]);
+      expect(prismaService.referralPoint.findMany).toHaveBeenCalled();
     });
   });
 });
