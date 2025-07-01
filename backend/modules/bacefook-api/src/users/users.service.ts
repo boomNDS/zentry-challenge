@@ -6,6 +6,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto, SearchUsersDto, UpdateUserDto } from './dto';
 import { mapUserProfile } from '../common/user.util';
+import { IFriend } from './interface/user.interface';
 
 @Injectable()
 export class UsersService {
@@ -292,5 +293,71 @@ export class UsersService {
     });
 
     return { message: 'User deleted successfully' };
+  }
+
+  async addFriend({ id, friendId }: IFriend) {
+    const [user, friend] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id } }),
+      this.prisma.user.findUnique({ where: { id: friendId } }),
+    ]);
+    if (!user || !friend)
+      throw new NotFoundException('User or friend not found');
+
+    // Connect both ways for bi-directional friendship
+    await this.prisma.user.update({
+      where: { id },
+      data: { friends: { connect: { id: friendId } } },
+    });
+    await this.prisma.user.update({
+      where: { id: friendId },
+      data: { friends: { connect: { id } } },
+    });
+
+    await this.prisma.event.create({
+      data: {
+        type: 'addfriend',
+        data: {
+          user1Id: id,
+          user2Id: friendId,
+          createdAt: new Date(),
+        },
+        processed: true,
+      },
+    });
+
+    return { message: 'Friend added successfully' };
+  }
+
+  async removeFriend({ id, friendId }: IFriend) {
+    const [user, friend] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id } }),
+      this.prisma.user.findUnique({ where: { id: friendId } }),
+    ]);
+    if (!user || !friend)
+      throw new NotFoundException('User or friend not found');
+
+    // Disconnect both ways for bi-directional friendship
+    await this.prisma.user.update({
+      where: { id },
+      data: { friends: { disconnect: { id: friendId } } },
+    });
+    await this.prisma.user.update({
+      where: { id: friendId },
+      data: { friends: { disconnect: { id } } },
+    });
+
+    await this.prisma.event.create({
+      data: {
+        type: 'unfriend',
+        data: {
+          user1Id: id,
+          user2Id: friendId,
+          createdAt: new Date(),
+        },
+        processed: true,
+      },
+    });
+
+    return { message: 'Friend removed successfully' };
   }
 }

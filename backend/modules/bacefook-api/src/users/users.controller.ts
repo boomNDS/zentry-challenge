@@ -19,6 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto, SearchUsersDto } from './dto';
+import { FriendDto } from './dto/friend.dto';
 
 @ApiTags('users')
 @Controller('users')
@@ -203,5 +204,32 @@ export class UsersController {
   })
   remove(@Param('id') id: string) {
     return this.usersService.remove(id);
+  }
+
+  @Post(':id/friends')
+  @ApiOperation({
+    summary: 'Add a friend',
+    description: 'Add a friend by user ID',
+  })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiBody({ type: FriendDto, description: 'Friend ID to add' })
+  @ApiResponse({ status: 200, description: 'Friend added successfully' })
+  async addFriend(@Param('id') id: string, @Body() body: FriendDto) {
+    return this.usersService.addFriend({
+      id,
+      friendId: body.friendId,
+    });
+  }
+
+  @Delete(':id/friends/:friendId')
+  @ApiOperation({
+    summary: 'Remove a friend',
+    description: 'Remove a friend by user ID',
+  })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiBody({ type: FriendDto, description: 'Friend ID to remove' })
+  @ApiResponse({ status: 200, description: 'Friend removed successfully' })
+  async removeFriend(@Param('id') id: string, @Body() body: FriendDto) {
+    return this.usersService.removeFriend({ id, friendId: body.friendId });
   }
 }
